@@ -52,6 +52,7 @@ jobs:
 
       # Setup AZURE credentials for the clusters
 
+
       # List of files that are added or modified in the commit
       - id: files
         uses: masesgroup/retrieve-changed-files@v2
