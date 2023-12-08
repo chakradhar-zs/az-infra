@@ -1,0 +1,132 @@
+name: "Terragrunt CI"
+
+on:
+  push:
+    paths:
+      - 'azure/**'
+      - '!destroy-clusters/azure/**'
+    branches:
+      - main
+  pull_request:
+    types: [review_requested]
+    paths:
+      - 'azure/**'
+      - '!destroy-clusters/azure/**'
+    branches:
+      - main
+
+jobs:
+  Terragrunt:
+    name: "Terragrunt Apply"
+    runs-on: ubuntu-latest
+
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # Checkout the repository to the GitHub Actions runner
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      # Install the latest version of Terraform and Terragrunt CLI
+      - name: Setup Terraform v1.4.0
+        uses: hashicorp/setup-Terraform@v1
+        with:
+          terraform_version: 1.4.0
+          terraform_wrapper: false
+      - name: Setup Terraform version
+        run: terraform --version
+      - name: Setup Terraform wrapper path
+        run: which terraform
+
+      - name: Setup Terragrunt v0.44.5
+        run: |
+          sudo wget -q -O /bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v0.44.5/terragrunt_linux_amd64"
+          sudo chmod +x /bin/terragrunt
+          terragrunt -v
+
+      - name: Get dependencies
+        run: |
+          git config --global url."https://${{ secrets.PAT}}@github.com/".insteadOf "ssh://git@github.com"
+          git config --global http.sslVerify false
+
+      # Setup AZURE credentials for the clusters
+      - name: Az CLI login
+        run: az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p 6ff8Q~.v3reBWgbo1~st7P6IhfhoWMgPm_rg5bDV --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+      # List of files that are added or modified in the commit
+      - id: files
+        uses: masesgroup/retrieve-changed-files@v2
+      - run: |
+          for added_modified_file in ${{ steps.files.outputs.all }}; do
+            echo ${added_modified_file}
+          done
+
+      - id: sort
+        run: |
+          readarray -td $'\0' sorted < <(
+                    for i in ${{ steps.files.outputs.all }};
+                    do     printf '%s %s\0' "${#i}" "$i";
+                    done |
+                            sort -bz -k1,1n -k2|
+                            cut -zd " " -f2-
+                    )
+          echo "files=`echo ${sorted[@]}`" >> "$GITHUB_OUTPUT"
+
+      # Initialize a new or existing Terragrunt working directory by creating initial files, loading any remote state, downloading modules, etc.
+      - name: Terragrunt Init
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          cd 
+          for added_modified_file in ${{ steps.sort.outputs.files  }}; do
+            if [[ $(basename ${added_modified_file}) == 'terragrunt.hcl' ]]; then
+            cd work/$REPO_NAME/$REPO_NAME
+            pwd 
+            file_name=$(dirname ${added_modified_file} | cut -d'/' -f2)
+            echo ${added_modified_file}
+            cd $(dirname ${added_modified_file})
+            terragrunt init --terragrunt-non-interactive
+            cd
+            fi
+          done
+
+      # Generates an execution plan for Terragrunt
+      - name: Terragrunt Plan
+        if: github.event_name == 'pull_request'
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          cd 
+          for added_modified_file in ${{ steps.sort.outputs.files  }}; do
+            if [[ $(basename ${added_modified_file}) == 'terragrunt.hcl' ]]; then
+            cd work/$REPO_NAME/$REPO_NAME
+            file_name=$(dirname ${added_modified_file} | cut -d'/' -f2)
+            echo ${added_modified_file}
+            cd $(dirname ${added_modified_file})
+            terragrunt plan --terragrunt-non-interactive
+            cd
+            fi
+          done
+        
+
+        # On push to main, build or change infrastructure according to Terragrunt configuration files
+      - name: Terragrunt Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          cd 
+          for added_modified_file in ${{ steps.sort.outputs.files  }}; do
+            if [[ $(basename ${added_modified_file}) == 'terragrunt.hcl' ]]; then
+            cd work/$REPO_NAME/$REPO_NAME
+            echo ${added_modified_file}
+            file_name=$(dirname ${added_modified_file} | cut -d'/' -f2)
+            echo ${added_modified_file}
+            cd $(dirname ${added_modified_file})
+            terragrunt apply -auto-approve
+            cd
+            fi
+          done
