@@ -51,6 +51,8 @@ jobs:
           git config --global http.sslVerify false
 
       # Setup AZURE credentials for the clusters
+      - name: Az CLI login
+        run: az login --service-principal -u 54ca77d8-81d5-4f61-94e0-77d00f5ea594 -p fBD8Q~csC09u.GzEfIr4caq1X6ccsRbGIVBZ2bSx --tenant d7d915d2-840b-42e3-b88c-a110aac3c1df
 
       # List of files that are added or modified in the commit
       - id: files
