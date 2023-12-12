@@ -2,17 +2,18 @@ name: "stage deploy"
 on:
   push:
     branches:
-      - Master
+      - main
 
-jobs:
-  steps:
-    - name: Authorize to GCP service account
-      uses: google-github-actions/auth@v1
-      with:
-        credentials_json: ${{ secrets.DEPLOY_KEY }}
+jobs: 
+  job1:
+    steps:
+      - name: Authorize to GCP service account
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.DEPLOY_KEY }}
 
-    - name: Set up Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
 
-    - name: Use gcloud CLI
-      run: gcloud auth list --filter=status:ACTIVE --format="value(account)"
+      - name: Use gcloud CLI
+        run: gcloud auth list --filter=status:ACTIVE --format="value(account)"
