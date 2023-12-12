@@ -8,6 +8,7 @@ on:
 
 jobs: 
   job1:
+    runs-on: ubuntu-latest
     steps:
       - name: Authorize to GCP service account
         uses: google-github-actions/auth@v1
